@@ -47,7 +47,7 @@ invoked manually or integrated into CI.
 
 1. **Clone the repo**
    ```bash
-   git clone https://github.com/your-org/ollama-chainlit.git
+   git clone git@github.com:Kurja1/ai-ui-vibe.git
    cd ollama-chainlit
    ```
 
