@@ -1,0 +1,20 @@
+[project]
+name = "my-chat-app"
+version = "0.1.0"
+description = "Chat interface for Ollama models"
+requires-python = ">=3.12"
+dependencies = [
+    "ollama>=0.1.0",          # replace with actual Ollama client
+    "rich>=13.0.0",           # optional UI
+]
+
+[tool.uv]
+# uv will use this file for lock & sync
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "ruff>=0.3.0",
+]
+
+[build-system]
+requires = ["uv"]
+build-backend = "uv.build"
