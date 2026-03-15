@@ -25,8 +25,11 @@ cp .env.example .env
 # 3️⃣ Install dependencies with UV
 uv sync
 
-# 4️⃣ Build and run the Docker stack
-docker compose up -d
+# 4️⃣ Build the Docker image (if not using compose)
+docker build -t ai-ui-vibe .
+
+# 5️⃣ Launch the container on port 8000
+docker run -p 8000:8000 --env-file .env ai-ui-vibe
 ```
 
 ## 📦 Configuration
