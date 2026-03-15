@@ -13,69 +13,56 @@ async def on_message(message: cl.Message):
     Args:
         message: Chainlit message object
     """
-    # Get the user's message
     user_message = message.content
     
-    # Send a response stream
     msg = cl.Message(content="")
     await msg.send()
     
-    # Initialize variables to track metrics
-    total_tokens = 0
-    total_duration_ns = 0.0
+    # Accumulate metrics from the final chunk only (as Ollama provides them then)
+    final_metrics = {}
 
-    # Create a "Thinking" status indicator using cl.Message
-    thinking_msg = cl.Message(
-        content="⚡ **Thinking...**",
-        role="assistant"
-    )
-    await thinking_msg.send()
+    async for chunk in ollama_client.generate_response(
+        prompt=user_message,
+        stream=True
+    ):
+        text = chunk.get('text', '')
 
-    try:
-        # Generate response using Ollama
-        async for chunk in ollama_client.generate_response(
-            prompt=user_message,
-            stream=True
-        ):
-            # Extract text from the structured chunk
-            text = chunk.get('text', '')
+        if text:
+            await msg.stream_token(text)
 
-            # Stream only the text to the UI
-            if text:
-                await msg.stream_token(text)
+        # Capture metrics when the generation is done
+        if chunk.get('done') and chunk.get('metrics'):
+            final_metrics = chunk['metrics']
 
-            # Accumulate metrics
-            if chunk.get('done'):
-                metrics = chunk.get('metrics')
-                
-                # Ensure metrics is not None before accessing it
-                if metrics:
-                    eval_count = metrics.get('eval_count')
-                    # Ollama returns duration in nanoseconds, convert to seconds
-                    total_duration_ns = metrics.get('total_duration', 0.0)
+    await msg.update()
 
-                    if eval_count is not None:
-                        total_tokens = eval_count
+    # Display comprehensive performance stats
+    if final_metrics:
+        total_tokens = final_metrics.get('eval_count', 0) + final_metrics.get('prompt_eval_count', 0)
+        total_duration_ns = final_metrics.get('total_duration', 0)
         
-        # Update the thinking message to show completion stats or delete it
-        await thinking_msg.update()
+        # Convert nanoseconds to seconds
+        duration_seconds = total_duration_ns / 1_000_000_000.0
         
-        # Finalize message and optionally display performance summary
-        await msg.update()
+        # Calculate tokens per second if duration > 0
+        tokens_per_second = (total_tokens / duration_seconds) if duration_seconds > 0 else 0
+        
+        stats_content = f"""⚡ **Performance Overview**
 
-        # Display a metadata element with performance stats after the chat completes
-        if total_duration_ns > 0:
-            duration_seconds = total_duration_ns / 1_000_000_000.0
-            
-            # Update the thinking message to show it's done and add stats
-            await thinking_msg.update(
-                content=f"⚡ **Response Ready**\n- Tokens Evaluated: {total_tokens}\n- Duration: {duration_seconds:.2f}s"
-            )
+- **Total Tokens**: {total_tokens}
+  - Prompt: {final_metrics.get('prompt_eval_count', 0)}
+  - Completion: {final_metrics.get('eval_count', 0)}
+- **Latency Breakdown**:
+  - Load Time: {(final_metrics.get('load_duration', 0) / 1_000_000_000.0):.2f}s
+  - Prompt Eval: {(final_metrics.get('prompt_eval_duration', 0) / 1_000_000_000.0):.2f}s
+  - Generation: {(total_duration_ns - final_metrics.get('load_duration', 0) - final_metrics.get('prompt_eval_duration', 0)) / 1_000_000_000.0:.2f}s
+- **Speed**: {tokens_per_second:.2f} tokens/sec
+- **Total Duration**: {duration_seconds:.2f}s"""
 
-    except Exception as e:
-        # If an error occurs, update the thinking message to show the error
-        await thinking_msg.update(content=f"❌ Error: {str(e)}")
-        raise e
+        await cl.Message(
+            content=stats_content,
+            metadata={"type": "performance"}
+        ).send()
 
 # Add a simple Streamlit-like interface
 @cl.on_chat_start
