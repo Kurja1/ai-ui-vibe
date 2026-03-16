@@ -1,0 +1,83 @@
+description: "Thesis Benchmark: Multi-scale Model Reasoning & Coding"
+
+# -----------------------------------------------------------------------------
+# 1. THE "NO OPENAI" EVALUATOR SETUP
+# This tells Promptfoo exactly which local models to use for grading.
+# -----------------------------------------------------------------------------
+defaultTest:
+  options:
+    provider:
+      text:
+        id: ollama:chat:qwen3-coder:30b 
+        config:
+          temperature: 0.0 # Zero temperature makes the judge perfectly objective
+      embedding:
+        id: ollama:embeddings:qwen3-embedding:8b
+
+# -----------------------------------------------------------------------------
+# 2. THE CONTESTANTS (Sorted by weight)
+# -----------------------------------------------------------------------------
+providers:
+  # The Heavyweights (High Reasoning)
+  - id: ollama:chat:qwen3.5:35b
+  - id: ollama:chat:qwen3-coder:30b
+  - id: ollama:chat:gpt-oss:20b
+  
+  # The Mid-range (Practical Utility)
+  - id: ollama:chat:deepcoder:14b
+  - id: ollama:chat:qwen3:8b
+  - id: ollama:chat:rnj-1:latest
+  
+  # The Lightweights (Speed/Latency tests)
+  - id: ollama:chat:llama3.2:3b
+  - id: ollama:chat:qwen2.5-coder:3b
+  - id: ollama:chat:gemma3:1b
+
+prompts:
+  - "Act as an expert Systems and Python developer. \n\nUser Query: {{query}}"
+
+# -----------------------------------------------------------------------------
+# 3. THE TESTS (Featuring modern assertions & gimmicks)
+# -----------------------------------------------------------------------------
+tests:
+  # TEST 1: Architectural Reasoning
+  - vars:
+      query: >
+        Refactor a simple monolithic Python script into a modular structure 
+        using Dependency Injection. The script fetches weather data from an API 
+        and saves it to a local JSON file. 
+        Show ONLY the class interfaces and the DI setup, no boilerplate.
+    assert:
+      - type: contains
+        value: "__init__"
+      - type: llm-rubric
+        value: "Pass if the code injects dependencies (like an API client or file writer) via the class constructor/initializer rather than hardcoding them inside the methods."
+      - type: javascript
+        value: "output.length < 2500" 
+        
+  # TEST 2: Hardware-Specific RAG Reasoning
+  - vars:
+      query: >
+        I am running a local RAG pipeline on a system with 24GB VRAM. 
+        Explain the VRAM impact of switching from a 4-bit quantized 30B model 
+        to an 8-bit version of the same model. Estimate the KV cache growth.
+    assert:
+      - type: factuality
+        value: "The output states that an 8-bit 30B model requires roughly 30GB of VRAM and will exceed the 24GB capacity causing an Out of Memory (OOM) error."
+      - type: answer-relevance
+        threshold: 0.7 
+
+  # TEST 3: Subtle Bug Detection
+  - vars:
+      query: >
+        Identify the logical flaw and the potential memory leak in this context manager:
+        class DataProcessor:
+            def __init__(self, resource):
+                self.res = open(resource, 'w')
+            def __enter__(self):
+                return self.res
+            def __exit__(self, type, val, tb):
+                self.res.close()
+    assert:
+      - type: llm-rubric
+        value: "Pass if the model identifies that opening the file in `__init__` is dangerous because if `__enter__` is never reached, the file is never closed."
