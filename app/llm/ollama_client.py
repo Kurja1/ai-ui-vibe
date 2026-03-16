@@ -5,6 +5,7 @@ Ollama client for connecting to local Ollama instance and managing LLM interacti
 import os
 from typing import Optional, AsyncGenerator
 from ollama import AsyncClient
+import asyncio
 
 from config import get_config
 
@@ -86,11 +87,18 @@ class OllamaClient:
                 }
                 
         except Exception as e:
-            yield {
-                'text': f"Error generating response: {str(e)}",
-                'metrics': None,
-                'done': True
-            }
+            if "failed" in str(e):
+                yield {
+                    'text': f"Error: Could not connect to Ollama server at {get_config().OLLAMA_HOST}. Please ensure Ollama is running.",
+                    'metrics': None,
+                    'done': True
+                }
+            else:
+                yield {
+                    'text': f"Error generating response: {str(e)}",
+                    'metrics': None,
+                    'done': True
+                }
 
 # Global client instance
 ollama_client = OllamaClient()
