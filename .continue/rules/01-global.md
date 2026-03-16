@@ -6,7 +6,7 @@ globs: "**/*"
 
 - The repository follows a **Docker‑first** workflow.  
 - All code lives under `app/`.  
-- Use **Python 3.11+** with type hints.  
+- Use **Python 3.12+** with type hints.  
 - Follow **SOLID** principles; keep modules small and focused.  
 - All public functions should have a docstring.  
 - Tests are in `tests/` and use `pytest`.  
