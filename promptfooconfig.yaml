@@ -1,16 +1,20 @@
-description: "Thesis Benchmark: Multi-scale Model Reasoning & Coding"
+description: "Thesis Benchmark: Multi-scale Model Reasoning, Coding & Personas"
+
+evaluateOptions:
+  maxConcurrency: 1
 
 # -----------------------------------------------------------------------------
 # 1. THE "NO OPENAI" EVALUATOR SETUP
-# This tells Promptfoo exactly which local models to use for grading.
 # -----------------------------------------------------------------------------
 defaultTest:
   options:
     provider:
       text:
-        id: ollama:chat:qwen3-coder:30b 
+        id: ollama:chat:gpt-oss:20b 
         config:
           temperature: 0.0 # Zero temperature makes the judge perfectly objective
+          passthrough:
+            keep_alive: 0
       embedding:
         id: ollama:embeddings:qwen3-embedding:8b
 
@@ -19,25 +23,49 @@ defaultTest:
 # -----------------------------------------------------------------------------
 providers:
   # The Heavyweights (High Reasoning)
-  - id: ollama:chat:qwen3.5:35b
   - id: ollama:chat:qwen3-coder:30b
+    config:
+      passthrough:
+        keep_alive: 0
   - id: ollama:chat:gpt-oss:20b
+    config:
+      passthrough:
+        keep_alive: 0
   
   # The Mid-range (Practical Utility)
-  - id: ollama:chat:deepcoder:14b
   - id: ollama:chat:qwen3:8b
+    config:
+      passthrough:
+        keep_alive: 0
   - id: ollama:chat:rnj-1:latest
+    config:
+      passthrough:
+        keep_alive: 0
   
   # The Lightweights (Speed/Latency tests)
   - id: ollama:chat:llama3.2:3b
+    config:
+      passthrough:
+        keep_alive: 0
   - id: ollama:chat:qwen2.5-coder:3b
+    config:
+      passthrough:
+        keep_alive: 0
   - id: ollama:chat:gemma3:1b
-
-prompts:
-  - "Act as an expert Systems and Python developer. \n\nUser Query: {{query}}"
+    config:
+      passthrough:
+        keep_alive: 0
 
 # -----------------------------------------------------------------------------
-# 3. THE TESTS (Featuring modern assertions & gimmicks)
+# 3. PROMPT MATRIX
+# Tests how context/persona affects the output quality
+# -----------------------------------------------------------------------------
+prompts:
+  - "Act as an expert Systems and Python developer. Follow best practices strictly.\n\nUser Query: {{query}}"
+  - "Act as a casual 'vibe coder' who just wants to get things working fast.\n\nUser Query: {{query}}"
+
+# -----------------------------------------------------------------------------
+# 4. THE TESTS
 # -----------------------------------------------------------------------------
 tests:
   # TEST 1: Architectural Reasoning
@@ -50,6 +78,8 @@ tests:
     assert:
       - type: contains
         value: "__init__"
+      - type: contains
+        value: "class " # Ensures it actually output object-oriented code
       - type: llm-rubric
         value: "Pass if the code injects dependencies (like an API client or file writer) via the class constructor/initializer rather than hardcoding them inside the methods."
       - type: javascript
@@ -81,3 +111,22 @@ tests:
     assert:
       - type: llm-rubric
         value: "Pass if the model identifies that opening the file in `__init__` is dangerous because if `__enter__` is never reached, the file is never closed."
+
+  # TEST 4: Strict Instruction Following (The JSON Test)
+  - vars:
+      query: >
+        Generate a JSON object for a user profile with fields: name, age, and email. 
+        Output ONLY valid JSON, no markdown, no explanations.
+    assert:
+      - type: is-json # Built-in Promptfoo validation to catch chatty models
+
+  # TEST 5: Unit Test Generation (Validating Chapter 4.3)
+  - vars:
+      query: >
+        Write a pytest unit test for a Python function that divides two numbers. 
+        It must include a test for a ZeroDivisionError.
+    assert:
+      - type: contains
+        value: "ZeroDivisionError"
+      - type: contains
+        value: "pytest.raises"
